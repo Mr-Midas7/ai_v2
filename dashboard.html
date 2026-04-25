@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fake Rider | Admin Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <header class="sticky-nav">
+        <div class="container navbar">
+            <a href="dashboard.html" class="logo">
+                <img src="logo.png" alt="Fake Rider Logo" style="height: 50px; width: auto;">
+            </a>
+            <div style="display: flex; align-items: center; gap: 2rem;">
+                <div class="nav-links" style="padding-right: 1.5rem; border-right: 1px solid var(--zinc-800);">
+                    <div style="text-align: right;">
+                        <p style="font-size: 0.65rem; color: var(--zinc-500); font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; line-height: 1;">Staff access</p>
+                        <p id="userName" style="font-size: 0.75rem; font-weight: 700; margin-top: 0.2rem;">Chief Mechanic</p>
+                    </div>
+                </div>
+                <a href="#" id="logoutBtn" style="color: var(--danger); font-size: 0.75rem; font-weight: 800; text-transform: uppercase; text-decoration: none; letter-spacing: 0.1em;">Logoff</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="container" style="padding-top: 3rem; padding-bottom: 5rem;">
+        <div class="animate-fade-in-up">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 3rem;">
+                <div>
+                    <h2 style="font-size: 2.5rem; line-height: 1;">Service <span style="color:var(--primary)">Bay Control</span></h2>
+                    <p style="color: var(--zinc-500); text-transform: uppercase; font-weight: 800; font-size: 0.75rem; letter-spacing: 0.2em; margin-top: 0.5rem; font-style: italic;">Real-time Fleet Maintenance</p>
+                </div>
+                <div style="display: flex; gap: 1rem;">
+                    <select id="statusFilter" class="btn btn-outline" style="min-width: 150px;">
+                        <option value="all">ALL STATUSES</option>
+                        <option value="pending">PENDING</option>
+                        <option value="confirmed">CONFIRMED</option>
+                        <option value="in_progress">IN PROGRESS</option>
+                        <option value="completed">COMPLETED</option>
+                        <option value="cancelled">CANCELLED</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Metrics Row -->
+            <div class="metrics-row" style="margin-bottom: 3rem;">
+                <div class="metric-card">
+                    <span>Total Backlog</span>
+                    <p id="totalJobs">0</p>
+                </div>
+                <div class="metric-card">
+                    <span>Incoming</span>
+                    <p id="pendingJobs" style="color: var(--primary);">0</p>
+                </div>
+                <div class="metric-card">
+                    <span>In the Bay</span>
+                    <p id="activeJobs" style="color: #3b82f6;">0</p>
+                </div>
+                <div class="metric-card">
+                    <span>Revenue (Today)</span>
+                    <p id="dailyRevenue">$0.00</p>
+                </div>
+            </div>
+
+            <div class="dashboard-grid" id="adminAppointmentsGrid">
+                <!-- Admin view appointments here -->
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer-bar">
+        <p>© 2026 Fake Rider Performance Systems. Optimized for high speed.</p>
+        <div style="display: flex; gap: 1.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <div class="status-dot"></div>
+                <span>Bay Sensors: Active</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Status Update Modal (Overlay) -->
+    <div id="statusModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; align-items: center; justify-content: center;">
+        <div class="auth-card" style="margin: 0;">
+            <h3 style="margin-bottom: 1.5rem; color: var(--primary);">Update Job Status</h3>
+            <form id="statusUpdateForm">
+                <input type="hidden" id="activeAppointmentId">
+                <div class="form-group">
+                    <label>Job Status</label>
+                    <select id="newStatus">
+                        <option value="pending">Pending</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Staff Notes</label>
+                    <textarea id="staffNotes" placeholder="Updates for the customer..."></textarea>
+                </div>
+                <div style="display: flex; gap: 1rem;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Save Update</button>
+                    <button type="button" class="btn btn-outline" id="closeModal" style="flex: 1;">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="supabase.js"></script>
+    <script>
+        lucide.createIcons();
+
+        let currentUser = null;
+        let allAppointments = [];
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            currentUser = await window.fakeRiderAuth.getCurrentUser();
+            if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'staff')) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            loadAllAppointments();
+        });
+
+        async function loadAllAppointments() {
+            const { data, error } = await window.fakeRiderDB.getAppointments('admin');
+            if (error) {
+                console.error(error);
+                return;
+            }
+            allAppointments = data;
+            
+            // Populate Dashboard Metrics
+            const total = allAppointments.length;
+            const pending = allAppointments.filter(a => a.status === 'pending').length;
+            const active = allAppointments.filter(a => a.status === 'in_progress').length;
+            const revenue = allAppointments
+                .filter(a => a.status === 'completed')
+                .reduce((acc, a) => acc + (parseFloat(a.services.price) || 0), 0);
+
+            document.getElementById('totalJobs').innerText = total;
+            document.getElementById('pendingJobs').innerText = pending;
+            document.getElementById('activeJobs').innerText = active;
+            document.getElementById('dailyRevenue').innerText = `$${revenue.toLocaleString()}`;
+            
+            if (currentUser.full_name) {
+                document.getElementById('userName').innerText = currentUser.full_name;
+            }
+
+            renderAppointments(allAppointments);
+        }
+
+        function renderAppointments(apps) {
+            const grid = document.getElementById('adminAppointmentsGrid');
+            const filterValue = document.getElementById('statusFilter').value;
+            
+            const filtered = filterValue === 'all' ? apps : apps.filter(a => a.status === filterValue);
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '<p style="color: #aaa;">No bikes in the bay for this filter.</p>';
+                return;
+            }
+
+            grid.innerHTML = filtered.map(app => `
+                <div class="card" style="border-left-color: ${getStatusColor(app.status)}">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                        <div>
+                            <span class="status-badge status-${app.status}">${app.status.replace('_', ' ')}</span>
+                            <h4 style="margin-top: 0.5rem; color: var(--primary);">${app.services.name}</h4>
+                            <p style="font-size: 0.9rem; color: #fff;">Owner: ${app.profiles.full_name}</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <p style="font-weight: 700;">${app.appointment_date}</p>
+                            <p style="color: var(--primary);">${app.appointment_time.substring(0, 5)}</p>
+                        </div>
+                    </div>
+                    
+                    <div style="background: rgba(255,255,255,0.05); padding: 0.75rem; border-radius: 8px; font-size: 0.85rem; margin-bottom: 1rem;">
+                        <p><strong>Customer Notes:</strong> ${app.notes || 'None'}</p>
+                        <p style="margin-top: 0.5rem;"><strong>Staff Notes:</strong> ${app.staff_notes || '<em>Waitling for mechanic...</em>'}</p>
+                    </div>
+
+                    <button class="btn btn-primary w-full btn-update" data-id="${app.id}" data-status="${app.status}" data-notes="${app.staff_notes || ''}">
+                        Update Job
+                    </button>
+                </div>
+            `).join('');
+
+            // Bind update buttons
+            document.querySelectorAll('.btn-update').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    openStatusModal(btn.dataset.id, btn.dataset.status, btn.dataset.notes);
+                });
+            });
+        }
+
+        function getStatusColor(status) {
+            switch(status) {
+                case 'pending': return 'var(--primary)';
+                case 'completed': return 'var(--success)';
+                case 'cancelled': return 'var(--danger)';
+                case 'in_progress': return '#fd7e14';
+                default: return '#0d6efd';
+            }
+        }
+
+        function openStatusModal(id, status, notes) {
+            document.getElementById('activeAppointmentId').value = id;
+            document.getElementById('newStatus').value = status;
+            document.getElementById('staffNotes').value = notes;
+            document.getElementById('statusModal').style.display = 'flex';
+        }
+
+        document.getElementById('closeModal').addEventListener('click', () => {
+            document.getElementById('statusModal').style.display = 'none';
+        });
+
+        document.getElementById('statusUpdateForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('activeAppointmentId').value;
+            const status = document.getElementById('newStatus').value;
+            const notes = document.getElementById('staffNotes').value;
+
+            const { error } = await window.fakeRiderDB.updateAppointmentStatus(id, status, notes);
+            
+            if (error) {
+                alert('Update failed: ' + error.message);
+            } else {
+                document.getElementById('statusModal').style.display = 'none';
+                loadAllAppointments();
+            }
+        });
+
+        document.getElementById('statusFilter').addEventListener('change', () => {
+            renderAppointments(allAppointments);
+        });
+
+        document.getElementById('logoutBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            window.fakeRiderAuth.signOut();
+        });
+    </script>
+</body>
+</html>

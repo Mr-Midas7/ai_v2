@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fake Rider Motorparts | Login</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <header class="sticky-nav">
+        <div class="container navbar">
+            <a href="index.html" class="logo">
+                <img src="logo.png" alt="Fake Rider Logo" style="height: 50px; width: auto;">
+            </a>
+            <ul class="nav-links">
+                <li><a href="index.html" class="active">Login</a></li>
+                <li><a href="register.html">Register</a></li>
+            </ul>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="auth-card animate-fade-in-up">
+            <div style="text-align: center; margin-bottom: 2.5rem;">
+                <div style="display: inline-flex; align-items: center; justify-content: center;">
+                    <img src="logo.png" alt="Fake Rider" style="width: 150px; height: 150px; object-fit: contain;">
+                </div>
+                <p style="color: var(--zinc-500); font-size: 0.75rem; text-transform: uppercase; font-weight: 800; letter-spacing: 0.1em; margin-top: 1rem;">Secure Access Protocol</p>
+            </div>
+
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="email">Pilot ID (Email)</label>
+                    <input type="email" id="email" placeholder="ride@fakerider.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Encryption Key (Password)</label>
+                    <input type="password" id="password" placeholder="••••••••" required>
+                </div>
+                
+                <button type="submit" class="btn btn-primary w-full" style="width: 100%; margin-top: 1.5rem; padding: 1rem;">
+                    Engage Ignition <i data-lucide="zap" style="display:inline-block; vertical-align: middle; width:18px; margin-left: 0.5rem;"></i>
+                </button>
+            </form>
+
+            <div style="text-align: center; margin-top: 2rem; border-top: 1px solid var(--zinc-800); padding-top: 2rem;">
+                <p style="font-size: 0.875rem; color: var(--zinc-500);">New to the crew? <a href="register.html" style="color: var(--primary); font-weight: 800; text-transform: uppercase; font-style: italic; letter-spacing: 0.05em; text-decoration: none; margin-left: 0.5rem;">Join the Ranks</a></p>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer-bar">
+        <p>© 2026 Fake Rider Performance Systems. Optimized for high speed.</p>
+        <div style="display: flex; gap: 1.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <div class="status-dot"></div>
+                <span>Supabase Realtime: Online</span>
+            </div>
+        </div>
+    </footer>
+
+    <script src="supabase.js"></script>
+    <script>
+        // Initialize Lucide
+        lucide.createIcons();
+
+        const loginForm = document.getElementById('loginForm');
+        
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            const { data, error } = await window.fakeRiderAuth.signIn(email, password);
+            
+            if (error) {
+                alert('Login failed: ' + error.message);
+            } else {
+                // Success - Fetch profile to redirect correctly
+                const profile = await window.fakeRiderAuth.getCurrentUser();
+                if (profile.role === 'admin' || profile.role === 'staff') {
+                    window.location.href = 'dashboard.html';
+                } else {
+                    window.location.href = 'booking.html';
+                }
+            }
+        });
+
+        // Check if already logged in
+        window.addEventListener('load', async () => {
+            const user = await window.fakeRiderAuth.getCurrentUser();
+            if (user) {
+                if (user.role === 'admin' || user.role === 'staff') {
+                    window.location.href = 'dashboard.html';
+                } else {
+                    window.location.href = 'booking.html';
+                }
+            }
+        });
+    </script>
+</body>
+</html>

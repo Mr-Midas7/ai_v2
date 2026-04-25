@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fake Rider | Book Service</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <header class="sticky-nav">
+        <div class="container navbar">
+            <a href="booking.html" class="logo">
+                <img src="logo.png" alt="Fake Rider Logo" style="height: 50px; width: auto;">
+            </a>
+            <ul class="nav-links" style="display: flex;">
+                <li><a href="#" id="viewAppointmentsBtn" class="active">My Garage</a></li>
+                <li><a href="#" id="logoutBtn" style="color: var(--danger);">Systems Eject</a></li>
+            </ul>
+        </div>
+    </header>
+
+    <main class="container" style="padding-top: 3rem; padding-bottom: 5rem;">
+        <div id="bookingSection" class="animate-fade-in-up">
+            <div style="margin-bottom: 3rem;">
+                <h2 style="font-size: 2.5rem; line-height: 1;">Schedule <span style="color:var(--primary)">Maintenance</span></h2>
+                <p style="color: var(--zinc-500); text-transform: uppercase; font-weight: 800; font-size: 0.75rem; letter-spacing: 0.2em; margin-top: 0.5rem; font-style: italic;">Select your performance package below</p>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 2rem;">
+                <!-- Step 1: Select Service -->
+                <div class="card" style="background: var(--secondary);">
+                    <h3 style="font-size: 1rem; border-bottom: 2px solid var(--primary); display: inline-block; padding-bottom: 0.25rem; margin-bottom: 1.5rem;">01. Performance Select</h3>
+                    <div id="servicesList">
+                        <p>Scanning inventory...</p>
+                    </div>
+                </div>
+
+                <!-- Step 2: Date & Time -->
+                <div class="card" style="background: var(--secondary);">
+                    <h3 style="font-size: 1rem; border-bottom: 2px solid var(--primary); display: inline-block; padding-bottom: 0.25rem; margin-bottom: 1.5rem;">02. Mission Window</h3>
+                    <div class="form-group">
+                        <label>Target Date</label>
+                        <input type="date" id="appointmentDate" min="">
+                    </div>
+                    
+                    <div id="timeSlotContainer" style="display: none; margin-top: 2rem;">
+                        <label style="color: var(--zinc-500); font-size: 0.65rem; text-transform: uppercase; font-weight: 800; letter-spacing: 0.1em; display: block; margin-bottom: 0.75rem;">Available Landing Slots</label>
+                        <div class="time-slots" id="timeSlotsGrid">
+                            <!-- Slots will be injected here -->
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 2rem;">
+                        <label>Mission Briefing (Bike Specs & Issues)</label>
+                        <textarea id="notes" style="min-height: 120px;" placeholder="e.g. 2021 MT-07, strange noise in chain..."></textarea>
+                    </div>
+
+                    <button id="bookNowBtn" class="btn btn-primary w-full" style="width: 100%; margin-top: 1rem; padding: 1.25rem;" disabled>
+                        Confirm Booking <i data-lucide="chevron-right" style="display:inline-block; vertical-align: middle; width:18px; margin-left: 0.5rem;"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Appointments List (Hidden by default) -->
+        <div id="appointmentsSection" style="display: none;" class="animate-fade-in-up">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 3rem;">
+                <div>
+                    <h2 style="font-size: 2.5rem; line-height: 1;">My <span style="color:var(--primary)">Garage</span></h2>
+                    <p style="color: var(--zinc-500); text-transform: uppercase; font-weight: 800; font-size: 0.75rem; letter-spacing: 0.2em; margin-top: 0.5rem; font-style: italic;">Active Service History</p>
+                </div>
+                <button class="btn btn-outline" id="backToBookingBtn">Return to Booking</button>
+            </div>
+
+            <div class="metrics-row" id="customerMetrics">
+                <div class="metric-card">
+                    <span>Active Jobs</span>
+                    <p id="activeJobsCount">0</p>
+                </div>
+                <div class="metric-card">
+                    <span>Completed</span>
+                    <p id="completedJobsCount" style="color: var(--success);">0</p>
+                </div>
+                <div class="metric-card">
+                    <span>Cancelled</span>
+                    <p id="cancelledJobsCount" style="color: var(--danger);">0</p>
+                </div>
+                <div class="metric-card">
+                    <span>Est. Time Spent</span>
+                    <p id="totalHours">0h</p>
+                </div>
+            </div>
+
+            <div class="dashboard-grid" id="myAppointmentsGrid">
+                <!-- User appointments here -->
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer-bar">
+        <p>© 2026 Fake Rider Performance Systems. Optimized for high speed.</p>
+        <div style="display: flex; gap: 1.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <div class="status-dot"></div>
+                <span>Syncronizer: Connected</span>
+            </div>
+        </div>
+    </footer>
+
+    <script src="supabase.js"></script>
+    <script>
+        lucide.createIcons();
+
+        let currentUser = null;
+        let selectedServiceId = null;
+        let selectedTime = null;
+
+        // Initialize Page
+        window.addEventListener('DOMContentLoaded', async () => {
+            currentUser = await window.fakeRiderAuth.getCurrentUser();
+            if (!currentUser) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Set min date to tomorrow
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            document.getElementById('appointmentDate').min = tomorrow.toISOString().split('T')[0];
+
+            loadServices();
+            loadMyAppointments();
+        });
+
+        async function loadServices() {
+            const { data: services, error } = await window.fakeRiderDB.getServices();
+            if (error) return;
+
+            const container = document.getElementById('servicesList');
+            container.innerHTML = services.map(service => `
+                <div class="card service-item" style="margin-bottom: 1rem; cursor: pointer; border-left: none; border: 1px solid var(--gray);" data-id="${service.id}">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h4 style="color: var(--primary);">${service.name}</h4>
+                        <span style="font-weight: 700;">$${service.price}</span>
+                    </div>
+                    <p style="font-size: 0.8rem; color: #aaa;">${service.description}</p>
+                    <small style="color: var(--primary); opacity: 0.8;">Duration: ${service.duration_minutes} mins</small>
+                </div>
+            `).join('');
+
+            // Add click listeners
+            document.querySelectorAll('.service-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    document.querySelectorAll('.service-item').forEach(i => i.style.borderColor = 'transparent');
+                    item.style.borderColor = 'var(--primary)';
+                    selectedServiceId = item.dataset.id;
+                    checkFormValidity();
+                });
+            });
+        }
+
+        async function loadTimeSlots(date) {
+            const grid = document.getElementById('timeSlotsGrid');
+            const slots = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'];
+            
+            grid.innerHTML = '<p>Checking availability...</p>';
+            
+            // Check booked slots for this date
+            const { data: bookings } = await window.supabase
+                .from('appointments')
+                .select('appointment_time')
+                .eq('appointment_date', date)
+                .not('status', 'eq', 'cancelled');
+            
+            const bookedTimes = bookings.map(b => b.appointment_time.substring(0, 5));
+
+            grid.innerHTML = slots.map(slot => {
+                const isBooked = bookedTimes.includes(slot);
+                return `
+                    <div class="time-slot ${isBooked ? 'booked' : ''}" data-time="${slot}">
+                        ${slot}
+                    </div>
+                `;
+            }).join('');
+
+            document.querySelectorAll('.time-slot:not(.booked)').forEach(item => {
+                item.addEventListener('click', () => {
+                    document.querySelectorAll('.time-slot').forEach(i => i.classList.remove('selected'));
+                    item.classList.add('selected');
+                    selectedTime = item.dataset.time;
+                    checkFormValidity();
+                });
+            });
+            
+            document.getElementById('timeSlotContainer').style.display = 'block';
+        }
+
+        document.getElementById('appointmentDate').addEventListener('change', (e) => {
+            loadTimeSlots(e.target.value);
+            checkFormValidity();
+        });
+
+        function checkFormValidity() {
+            const date = document.getElementById('appointmentDate').value;
+            const btn = document.getElementById('bookNowBtn');
+            if (selectedServiceId && date && selectedTime) {
+                btn.disabled = false;
+            } else {
+                btn.disabled = true;
+            }
+        }
+
+        document.getElementById('bookNowBtn').addEventListener('click', async () => {
+            const date = document.getElementById('appointmentDate').value;
+            const notes = document.getElementById('notes').value;
+            
+            const appointmentData = {
+                user_id: currentUser.id,
+                service_id: selectedServiceId,
+                appointment_date: date,
+                appointment_time: selectedTime,
+                notes: notes,
+                status: 'pending'
+            };
+
+            const { data, error } = await window.fakeRiderDB.createAppointment(appointmentData);
+            
+            if (error) {
+                alert('Booking failed: ' + error.message);
+            } else {
+                alert('Success! Your appointment is parked. A mechanic will review it shortly.');
+                location.reload();
+            }
+        });
+
+        async function loadMyAppointments() {
+            const { data: apps, error } = await window.fakeRiderDB.getAppointments('customer', currentUser.id);
+            if (error) return;
+
+            // Populate Metrics
+            const active = apps.filter(a => ['pending', 'confirmed', 'in_progress'].includes(a.status)).length;
+            const completed = apps.filter(a => a.status === 'completed').length;
+            const cancelled = apps.filter(a => a.status === 'cancelled').length;
+            const totalMinutes = apps.filter(a => a.status === 'completed').reduce((acc, a) => acc + (a.services.duration_minutes || 0), 0);
+            
+            document.getElementById('activeJobsCount').innerText = active;
+            document.getElementById('completedJobsCount').innerText = completed;
+            document.getElementById('cancelledJobsCount').innerText = cancelled;
+            document.getElementById('totalHours').innerText = `${Math.round(totalMinutes / 60 * 10) / 10}h`;
+
+            const grid = document.getElementById('myAppointmentsGrid');
+            if (apps.length === 0) {
+                grid.innerHTML = '<p style="color: #aaa;">No upcoming rides found.</p>';
+                return;
+            }
+
+            grid.innerHTML = apps.map(app => `
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div>
+                            <span class="status-badge status-${app.status}">${app.status.replace('_', ' ')}</span>
+                            <h4 style="margin-top: 0.5rem; color: var(--primary);">${app.services.name}</h4>
+                        </div>
+                        <div style="text-align: right;">
+                            <p style="font-weight: 700;">${app.appointment_date}</p>
+                            <p style="color: var(--primary);">${app.appointment_time.substring(0, 5)}</p>
+                        </div>
+                    </div>
+                    <div style="margin-top: 1rem; font-size: 0.85rem; border-top: 1px solid var(--gray); padding-top: 1rem;">
+                        <p><strong>Mechanic Notes:</strong> ${app.staff_notes || 'No notes yet.'}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // UI Toggles
+        document.getElementById('viewAppointmentsBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('bookingSection').style.display = 'none';
+            document.getElementById('appointmentsSection').style.display = 'block';
+        });
+
+        document.getElementById('backToBookingBtn').addEventListener('click', () => {
+            document.getElementById('bookingSection').style.display = 'block';
+            document.getElementById('appointmentsSection').style.display = 'none';
+        });
+
+        document.getElementById('logoutBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            window.fakeRiderAuth.signOut();
+        });
+    </script>
+</body>
+</html>

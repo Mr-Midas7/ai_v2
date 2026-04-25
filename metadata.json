@@ -1,0 +1,6 @@
+{
+  "name": "Fake Rider Motorparts Scheduler",
+  "description": "Bold, sporty appointment scheduling system for Fake Rider Motorparts, Accessories & Repair Shop, built with vanilla JS and Supabase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
